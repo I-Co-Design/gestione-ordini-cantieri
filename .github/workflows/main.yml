@@ -8,12 +8,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Scarica Codice ed Excel dal Repository
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
 
     - name: Configura Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
-        python-node: '3.10'
+        python-version: '3.10'
 
     - name: Installa Librerie per Excel e PDF
       run: |
@@ -28,15 +28,9 @@ jobs:
         MONTATORE: ${{ github.event.client_payload.montatore }}
       run: python elabora_ordine.py
 
-    - name: Invia il PDF Finito via Email a Thunderbird
-      uses: dawidd6/action-send-mail@v3
+    - name: Carica il PDF nel Cloud di GitHub
+      uses: actions/upload-artifact@v4
       with:
-        server_address: ://gmail.com # Cambialo con il tuo provider SMTP (es. outlook, aruba ecc.)
-        server_port: 465
-        username: info@i-codesign.it
-        password: ${{ secrets.SMTP_PASSWORD }}
-        subject: "PDF PRONTO: Ordine per Cantiere ${{ github.event.client_payload.cantiere }}"
-        body: "In allegato trovi il PDF d'ordine pulito, codificato ed estratto dal catalogo di 1607 referenze."
-        to: info@i-codesign.it
-        from: Cloud Automations <info@i-codesign.it>
-        attachments: Ordine_Materiali.pdf
+        name: Ordine_Materiali_Cantiere
+        path: Ordine_Materiali.pdf
+        retention-days: 7
