@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestione Ordini Cantieri</title>
+    <!-- Librerie per leggere i CSV e generare il PDF all'istante direttamente sul telefono -->
+    <script src="https://cloudflare.com"></script>
+    <script src="https://cloudflare.com"></script>
+    <script src="https://cloudflare.com"></script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f4f5f6; padding: 15px; margin: 0; color: #333; }
+        .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 15px; }
+        h2 { margin-top: 0; color: #0284c7; }
+        label { display: block; margin: 10px 0 5px; font-weight: bold; }
+        input, select { width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 8px; box-sizing: border-box; font-size: 16px; margin-bottom: 10px; }
+        .btn-group { display: flex; gap: 10px; margin-bottom: 15px; }
+        .btn { flex: 1; padding: 12px; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; text-align: center; }
+        .btn-toggle { background: #e2e8f0; color: #475569; }
+        .btn-toggle.active { background: #0284c7; color: white; }
+        .btn-primary { background: #10b981; color: white; width: 100%; margin-top: 15px; }
+        .search-results { background: white; border: 1px solid #ddd; border-radius: 8px; max-height: 200px; overflow-y: auto; display: none; position: absolute; width: calc(100% - 70px); z-index: 100; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .search-item { padding: 12px; border-bottom: 1px solid #eee; cursor: pointer; font-size: 14px; }
+        .search-item:hover { background: #f0f9ff; }
+        .badge { display: inline-block; padding: 3px 6px; background: #e0f2fe; color: #0369a1; border-radius: 4px; font-size: 11px; font-weight: bold; margin-right: 5px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; }
+        th, td { padding: 10px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: #f8fafc; }
+        .remove-btn { color: #ef4444; font-weight: bold; cursor: pointer; border: none; background: none; }
+    </style>
+</head>
+<body>
+
+    <div class="card">
+        <h2>📋 Informazioni Cantiere</h2>
+        <label>Nome Montatore</label>
+        <input type="text" id="montatore" placeholder="Es. Mario Rossi">
+        
+        <label>Punto Vendita / Cantiere</label>
+        <input type="text" id="cantiere" placeholder="Es. Negozio Milano">
+        
+        <label>Nazione</label>
+        <div class="btn-group">
+            <button class="btn btn-toggle active" id="btn-italia" onclick="setNazione('ITALIA')">ITALIA</button>
+            <button class="btn btn-toggle" id="btn-spagna" onclick="setNazione('SPAGNA')">SPAGNA</button>
+        </div>
+    </div>
+
+    <div class="card" style="position: relative;">
+        <h2>🔍 Cerca Referenze (1607 Voci)</h2>
+        <label>Digita Codice o Descrizione</label>
+        <input type="text" id="search-input" placeholder="Inizia a digitare per cercare..." oninput="cercaArticolo(this.value)">
+        <div id="results-box" class="search-results"></div>
+        
+        <label>Quantità da inserire</label>
+        <input type="number" id="quantita-input" value="1" min="1">
+        
+        <button class="btn btn-toggle active" style="background:#0284c7;" onclick="aggiungiInLista()">+ Aggiungi alla Lista</button>
+    </div>
+
+    <div class="card">
+        <h2>🛒 Lista Articoli Scelti</h2>
+        <table id="lista-tabella">
+            <thead>
+                <tr>
+                    <th>Codice</th>
+                    <th>Descrizione</th>
+                    <th>Q.tà</th>
+                    <th>Azione</th>
+                </tr>
+            </thead>
+            <tbody id="lista-corpo">
+                <!-- Articoli aggiunti dinamicamente -->
+            </tbody>
+        </table>
+        
+        <button class="btn btn-primary" onclick="generaPDF()">📥 Genera e Scarica PDF Ordine</button>
+    </div>
+
+    <script>
+        let catalogo = [];
+        let nazioneAttuale = 'ITALIA';
+        let articoloSelezionato = null;
+        let carrello = [];
+
+        // Carica i dati CSV ufficiali con i tuoi nomi esatti all'avvio della pagina
+        function caricaCatalogo() {
+            const file = nazioneAttuale === 'ITALIA' ? 'ELABORATO COPIA INCOLLA (ITALIA).CSV' : 'ELABORATO COPIA INCOLLA (SPAGNA).CSV';
+            Papa.parse(file, {
+                download: true,
+                header: false,
+                complete: function(results) {
+                    // Salta le prime 3 righe (parte da riga 4)
+                    const righePulite = results.data.slice(3);
+                    catalogo = righePulite.map(r => ({
+                        codice_cliente: r[0] || '',
+                        codice_vero: r[1] || '',
+                        descrizione: r[2] || '',
+                        quantita_cat: r[3] || ''
+                    })).filter(r => r.codice_vero || r.descrizione);
+                }
+            });
+        }
+
+        function setNazione(naz) {
+            nazioneAttuale = naz;
+            document.getElementById('btn-italia').classList.toggle('active', naz === 'ITALIA');
+            document.getElementById('btn-spagna').classList.toggle('active', naz === 'SPAGNA');
+            caricaCatalogo();
+            document.getElementById('search-input').value = '';
+            articoloSelezionato = null;
+        }
+
+        function cercaArticolo(query) {
+            const box = document.getElementById('results-box');
+            if (query.length < 2) { box.style.display = 'none'; return; }
+            
+            const q = query.toLowerCase();
+            const filtrati = catalogo.filter(a => 
+                a.codice_vero.toLowerCase().includes(q) || 
+                a.descrizione.toLowerCase().includes(q)
+            ).slice(0, 15); // Mostra i primi 15 risultati per non appesantire lo schermo dello smartphone
+
+            if (filtrati.length === 0) { box.style.display = 'none'; return; }
+
+            box.innerHTML = filtrati.map(a => `
+                <div class="search-item" onclick="selezionaArticolo('${a.codice_vero.replace(/'/g, "\\'")}', '${a.descrizione.replace(/'/g, "\\'")}')">
+                    <span class="badge">${a.codice_vero}</span> ${a.descrizione}
+                </div>
+            `).join('');
+            box.style.display = 'block';
+        }
+
+        function selezionaArticolo(codice, desc) {
+            articoloSelezionato = { codice, desc };
+            document.getElementById('search-input').value = `${codice} - ${desc}`;
+            document.getElementById('results-box').style.display = 'none';
+        }
+
+        function aggiungiInLista() {
+            const qta = parseInt(document.getElementById('quantita-input').value) || 1;
+            let art = articoloSelezionato;
+            
+            if (!art) {
+                // Se scrivi qualcosa fuori catalogo, permette comunque l'inserimento manuale libero
+                const testoLibero = document.getElementById('search-input').value;
+                if(!testoLibero) return;
+                art = { codice: 'LIBERO', desc: testoLibero };
+            }
+
+            carrello.push({ ...art, qta });
+            aggiornaTabella();
+            
+            // Resetta i campi per l'articolo successivo
+            document.getElementById('search-input').value = '';
+            document.getElementById('quantita-input').value = '1';
+            articoloSelezionato = null;
+        }
+
+        function aggiornaTabella() {
+            const corpo = document.getElementById('lista-corpo');
+            corpo.innerHTML = carrello.map((item, index) => `
+                <tr>
+                    <td><strong>${item.codice}</strong></td>
+                    <td>${item.desc}</td>
+                    <td>${item.qta} pz</td>
+                    <td><button class="remove-btn" onclick="rimuoviArticolo(${index})">X</button></td>
+                </tr>
+            `).join('');
+        }
+
+        function rimuoviArticolo(index) {
+            carrello.splice(index, 1);
+            aggiornaTabella();
+        }
+
+        function generaPDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            
+            const montatore = document.getElementById('montatore').value || 'Non specificato';
+            const cantiere = document.getElementById('cantiere').value || 'Generico';
+
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(20);
+            doc.text("Riepilogo Ordine Materiali", 14, 20);
+            
+            doc.setFontSize(11);
+            doc.setFont("helvetica", "normal");
+            doc.text(`Nazione: ${nazioneAttuale}`, 14, 30);
+            doc.text(`Cantiere / Punto Vendita: ${cantiere}`, 14, 36);
+            doc.text(`Montatore: ${montatore}`, 14, 42);
+
+            const righeTabella = carrello.map(item => [item.codice, item.desc, `${item.qta} pz`]);
+
+            doc.autoTable({
+                startY: 48,
+                head: [['Codice Articolo', 'Descrizione Componente', 'Quantità']],
+                body: righeTabella,
+                headStyles: { fillColor: [2, 132, 199] },
+                theme: 'striped'
+            });
+
+            doc.save(`Ordine_${cantiere.replace(/\s+/g, '_')}.pdf`);
+        }
+
+        // Avvia automaticamente il catalogo Italia all'apertura del sito
+        caricaCatalogo();
+    </script>
+</body>
+</html>
