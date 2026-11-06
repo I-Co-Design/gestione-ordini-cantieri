@@ -4,9 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gestione Ordini Cantieri</title>
-    <!-- Librerie per leggere i CSV e generare il PDF all'istante direttamente sul telefono -->
-    <script src="https://cloudflare.com"></script>
-    <script src="https://cloudflare.com"></script>
+    <!-- LIBRERIE REALI: Permettono al telefono di leggere i tuoi file CSV e formattare la stampa -->
     <script src="https://cloudflare.com"></script>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f4f5f6; padding: 15px; margin: 0; color: #333; }
@@ -19,7 +17,7 @@
         .btn-toggle { background: #e2e8f0; color: #475569; }
         .btn-toggle.active { background: #0284c7; color: white; }
         .btn-primary { background: #10b981; color: white; width: 100%; margin-top: 15px; }
-        .search-results { background: white; border: 1px solid #ddd; border-radius: 8px; max-height: 200px; overflow-y: auto; display: none; position: absolute; width: calc(100% - 70px); z-index: 100; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .search-results { background: white; border: 1px solid #ddd; border-radius: 8px; max-height: 200px; overflow-y: auto; display: none; position: absolute; width: calc(100% - 30px);优化 z-index: 100; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
         .search-item { padding: 12px; border-bottom: 1px solid #eee; cursor: pointer; font-size: 14px; }
         .search-item:hover { background: #f0f9ff; }
         .badge { display: inline-block; padding: 3px 6px; background: #e0f2fe; color: #0369a1; border-radius: 4px; font-size: 11px; font-weight: bold; margin-right: 5px; }
@@ -74,7 +72,7 @@
             </tbody>
         </table>
         
-        <button class="btn btn-primary" onclick="generaPDF()">📥 Genera e Scarica PDF Ordine</button>
+        <button class="btn btn-primary" onclick="generaPDF()">📥 Genera Pagina di Stampa / PDF</button>
     </div>
 
     <script>
@@ -83,14 +81,13 @@
         let articoloSelezionato = null;
         let carrello = [];
 
-        // Carica i dati CSV ufficiali con i tuoi nomi esatti all'avvio della pagina
+        // Legge i tuoi file CSV su GitHub saltando le prime 3 righe (parte da riga 4)
         function caricaCatalogo() {
             const file = nazioneAttuale === 'ITALIA' ? 'ELABORATO COPIA INCOLLA (ITALIA).CSV' : 'ELABORATO COPIA INCOLLA (SPAGNA).CSV';
             Papa.parse(file, {
                 download: true,
                 header: false,
                 complete: function(results) {
-                    // Salta le prime 3 righe (parte da riga 4)
                     const righePulite = results.data.slice(3);
                     catalogo = righePulite.map(r => ({
                         codice_cliente: r[0] || '',
@@ -117,9 +114,9 @@
             
             const q = query.toLowerCase();
             const filtrati = catalogo.filter(a => 
-                a.codice_vero.toLowerCase().includes(q) || 
-                a.descrizione.toLowerCase().includes(q)
-            ).slice(0, 15); // Mostra i primi 15 risultati per non appesantire lo schermo dello smartphone
+                a.codice_vero.toString().toLowerCase().includes(q) || 
+                a.descrizione.toString().toLowerCase().includes(q)
+            ).slice(0, 15);
 
             if (filtrati.length === 0) { box.style.display = 'none'; return; }
 
@@ -142,16 +139,14 @@
             let art = articoloSelezionato;
             
             if (!art) {
-                // Se scrivi qualcosa fuori catalogo, permette comunque l'inserimento manuale libero
                 const testoLibero = document.getElementById('search-input').value;
                 if(!testoLibero) return;
-                art = { codice: 'LIBERO', desc: testoLibero };
+                art = { codice: 'MANUALE', desc: testoLibero };
             }
 
             carrello.push({ ...art, qta });
             aggiornaTabella();
             
-            // Resetta i campi per l'articolo successivo
             document.getElementById('search-input').value = '';
             document.getElementById('quantita-input').value = '1';
             articoloSelezionato = null;
@@ -174,11 +169,10 @@
             aggiornaTabella();
         }
 
-                       function generaPDF() {
+        function generaPDF() {
             const montatore = document.getElementById('montatore').value || 'Non specificato';
             const cantiere = document.getElementById('cantiere').value || 'Generico';
 
-            // 1. Crea il contenuto della nuova pagina di stampa
             let contenutoStampa = `
             <!DOCTYPE html>
             <html>
@@ -187,70 +181,23 @@
                 <style>
                     body { font-family: 'Helvetica', Arial, sans-serif; color: #333; margin: 30px; line-height: 1.5; }
                     h1 { color: #0284c7; border-bottom: 2px solid #0284c7; padding-bottom: 10px; margin-top: 0; }
-                    .info { background: #f8fafc; padding: 15px; border-left: 5px solid #0284c7; margin-bottom: 25px; border-radius: 0 8px 8px 0; }
+                    .info { background: #f8fafc; padding: 15px; border-left: 5px solid #0284c7; margin-bottom: 25px; }
                     .info p { margin: 5px 0; font-size: 14px; }
                     table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-                    th { background-color: #0284c7; color: white; padding: 12px 10px; text-align: left; font-size: 14px; }
-                    td { padding: 12px 10px; border-bottom: 1px solid #e2e8f0; font-size: 14px; }
+                    th { background-color: #0284c7; color: white; padding: 12px 10px; text-align: left; }
+                    td { padding: 12px 10px; border-bottom: 1px solid #e2e8f0; }
                     tr:nth-child(even) { background-color: #f8fafc; }
                     .no-print-btn { display: block; width: 100%; max-width: 200px; margin: 0 auto 20px auto; padding: 12px; background: #10b981; color: white; text-align: center; border: none; border-radius: 8px; font-weight: bold; font-size: 16px; cursor: pointer; }
                     @media print { .no-print-btn { display: none; } }
                 </style>
             </head>
             <body>
-                <button class="no-print-btn" onclick="window.print()">🖨️ Stampa / Condividi PDF</button>
+                <button class="no-print-btn" onclick="window.print()">🖨️ Stampa o Condividi PDF</button>
                 <h1>Riepilogo Ordine Materiali</h1>
                 <div class="info">
                     <p><strong>Nazione:</strong> ${nazioneAttuale}</p>
                     <p><strong>Punto Vendita / Cantiere:</strong> ${cantiere}</p>
-                    <p><strong>Montatore:</strong> ${montatore}</p>
-                </div>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Codice Articolo</th>
-                            <th>Descrizione Componente</th>
-                            <th>Quantità</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-            `;
 
-            // Aggiunge le righe degli articoli scelti alla tabella
-            carrello.forEach(item => {
-                contenutoStampa += `
-                        <tr>
-                            <td><strong>${item.codice}</strong></td>
-                            <td>${item.desc}</td>
-                            <td>${item.qta} pezzi</td>
-                        </tr>
-                `;
-            });
-
-            contenutoStampa += `
-                    </tbody>
-                </table>
-                <script>
-                    // Apre in automatico il menu di stampa/condivisione del telefono dopo un secondo
-                    setTimeout(() => { window.print(); }, 1000);
-                <\/script>
-            </body>
-            </html>
-            `;
-
-            // 2. Apre una nuova finestra/scheda nel browser del telefono e ci scrive dentro la pagina d'ordine
-            const nuovaFinestra = window.open();
-            if (nuovaFinestra) {
-                nuovaFinestra.document.open();
-                nuovaFinestra.document.write(contenutoStampa);
-                nuovaFinestra.document.close();
-            } else {
-                alert("Il tuo browser ha bloccato la nuova finestra. Controlla le impostazioni dei pop-up!");
-            }
-        }
-
-        // Avvia automaticamente il catalogo Italia all'apertura del sito
-        caricaCatalogo();
     </script>
 </body>
 </html>
