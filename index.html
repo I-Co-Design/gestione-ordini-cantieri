@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gestione Ordini Cantieri</title>
-    <!-- LIBRERIE REALI: Permettono al telefono di leggere i tuoi file CSV e formattare la stampa -->
+    <!-- Libreria ufficiale per leggere i file CSV di Italia e Spagna -->
     <script src="https://cloudflare.com"></script>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f4f5f6; padding: 15px; margin: 0; color: #333; }
@@ -17,7 +17,7 @@
         .btn-toggle { background: #e2e8f0; color: #475569; }
         .btn-toggle.active { background: #0284c7; color: white; }
         .btn-primary { background: #10b981; color: white; width: 100%; margin-top: 15px; }
-        .search-results { background: white; border: 1px solid #ddd; border-radius: 8px; max-height: 200px; overflow-y: auto; display: none; position: absolute; width: calc(100% - 30px);优化 z-index: 100; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .search-results { background: white; border: 1px solid #ddd; border-radius: 8px; max-height: 200px; overflow-y: auto; display: none; position: absolute; width: calc(100% - 30px); z-index: 100; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
         .search-item { padding: 12px; border-bottom: 1px solid #eee; cursor: pointer; font-size: 14px; }
         .search-item:hover { background: #f0f9ff; }
         .badge { display: inline-block; padding: 3px 6px; background: #e0f2fe; color: #0369a1; border-radius: 4px; font-size: 11px; font-weight: bold; margin-right: 5px; }
@@ -81,20 +81,26 @@
         let articoloSelezionato = null;
         let carrello = [];
 
-        // Legge i tuoi file CSV su GitHub saltando le prime 3 righe (parte da riga 4)
+        // Carica i dati dai file ora semplificati in italia.csv e spagna.csv
         function caricaCatalogo() {
-            const file = nazioneAttuale === 'ITALIA' ? 'ELABORATO COPIA INCOLLA (ITALIA).CSV' : 'ELABORATO COPIA INCOLLA (SPAGNA).CSV';
+            const file = nazioneAttuale === 'ITALIA' ? 'italia.csv' : 'spagna.csv';
             Papa.parse(file, {
                 download: true,
                 header: false,
                 complete: function(results) {
-                    const righePulite = results.data.slice(3);
-                    catalogo = righePulite.map(r => ({
-                        codice_cliente: r[0] || '',
-                        codice_vero: r[1] || '',
-                        descrizione: r[2] || '',
-                        quantita_cat: r[3] || ''
-                    })).filter(r => r.codice_vero || r.descrizione);
+                    if (results && results.data) {
+                        // Salta le prime 3 righe (l'elenco vero parte da riga 4)
+                        const righePulite = results.data.slice(3);
+                        catalogo = righePulite.map(r => ({
+                            codice_cliente: r[0] || '',
+                            codice_vero: r[1] || '',
+                            descrizione: r[2] || '',
+                            quantita_cat: r[3] || ''
+                        })).filter(r => r.codice_vero || r.descrizione);
+                    }
+                },
+                error: function(err) {
+                    console.error("Errore nel caricamento del file CSV:", err);
                 }
             });
         }
@@ -112,16 +118,16 @@
             const box = document.getElementById('results-box');
             if (query.length < 2) { box.style.display = 'none'; return; }
             
-            const q = query.toLowerCase();
+            const q = query.toLowerCase().trim();
             const filtrati = catalogo.filter(a => 
-                a.codice_vero.toString().toLowerCase().includes(q) || 
-                a.descrizione.toString().toLowerCase().includes(q)
+                (a.codice_vero && a.codice_vero.toString().toLowerCase().includes(q)) || 
+                (a.descrizione && a.descrizione.toString().toLowerCase().includes(q))
             ).slice(0, 15);
 
             if (filtrati.length === 0) { box.style.display = 'none'; return; }
 
             box.innerHTML = filtrati.map(a => `
-                <div class="search-item" onclick="selezionaArticolo('${a.codice_vero.replace(/'/g, "\\'")}', '${a.descrizione.replace(/'/g, "\\'")}')">
+                <div class="search-item" onclick="selezionaArticolo('${a.codice_vero.toString().replace(/'/g, "\\'")}', '${a.descrizione.toString().replace(/'/g, "\\'")}')">
                     <span class="badge">${a.codice_vero}</span> ${a.descrizione}
                 </div>
             `).join('');
@@ -139,7 +145,7 @@
             let art = articoloSelezionato;
             
             if (!art) {
-                const testoLibero = document.getElementById('search-input').value;
+                const testoLibero = document.getElementById('search-input').value.trim();
                 if(!testoLibero) return;
                 art = { codice: 'MANUALE', desc: testoLibero };
             }
@@ -147,6 +153,7 @@
             carrello.push({ ...art, qta });
             aggiornaTabella();
             
+            // Resetta i campi di inserimento
             document.getElementById('search-input').value = '';
             document.getElementById('quantita-input').value = '1';
             articoloSelezionato = null;
@@ -170,6 +177,11 @@
         }
 
         function generaPDF() {
+            if (carrello.length === 0) {
+                alert("La lista degli articoli è vuota!");
+                return;
+            }
+
             const montatore = document.getElementById('montatore').value || 'Non specificato';
             const cantiere = document.getElementById('cantiere').value || 'Generico';
 
@@ -188,16 +200,3 @@
                     td { padding: 12px 10px; border-bottom: 1px solid #e2e8f0; }
                     tr:nth-child(even) { background-color: #f8fafc; }
                     .no-print-btn { display: block; width: 100%; max-width: 200px; margin: 0 auto 20px auto; padding: 12px; background: #10b981; color: white; text-align: center; border: none; border-radius: 8px; font-weight: bold; font-size: 16px; cursor: pointer; }
-                    @media print { .no-print-btn { display: none; } }
-                </style>
-            </head>
-            <body>
-                <button class="no-print-btn" onclick="window.print()">🖨️ Stampa o Condividi PDF</button>
-                <h1>Riepilogo Ordine Materiali</h1>
-                <div class="info">
-                    <p><strong>Nazione:</strong> ${nazioneAttuale}</p>
-                    <p><strong>Punto Vendita / Cantiere:</strong> ${cantiere}</p>
-
-    </script>
-</body>
-</html>
