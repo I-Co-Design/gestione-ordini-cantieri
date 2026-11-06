@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gestione Ordini Cantieri</title>
-    <!-- Libreria ufficiale per leggere i file CSV di Italia e Spagna -->
+    <!-- Caricamento corretto della libreria per leggere i file CSV -->
     <script src="https://cloudflare.com"></script>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f4f5f6; padding: 15px; margin: 0; color: #333; }
@@ -81,26 +81,32 @@
         let articoloSelezionato = null;
         let carrello = [];
 
-        // Carica i dati dai file ora semplificati in italia.csv e spagna.csv
         function caricaCatalogo() {
             const file = nazioneAttuale === 'ITALIA' ? 'italia.csv' : 'spagna.csv';
+            catalogo = [];
+            
             Papa.parse(file, {
                 download: true,
                 header: false,
+                skipEmptyLines: true,
                 complete: function(results) {
-                    if (results && results.data) {
-                        // Salta le prime 3 righe (l'elenco vero parte da riga 4)
+                    if (results && results.data && results.data.length > 3) {
                         const righePulite = results.data.slice(3);
-                        catalogo = righePulite.map(r => ({
-                            codice_cliente: r[0] || '',
-                            codice_vero: r[1] || '',
-                            descrizione: r[2] || '',
-                            quantita_cat: r[3] || ''
-                        })).filter(r => r.codice_vero || r.descrizione);
+                        
+                        catalogo = righePulite.map(r => {
+                            const col0 = (r && r[0]) ? r[0].toString().trim() : '';
+                            const col1 = (r && r[1]) ? r[1].toString().trim() : '';
+                            const col2 = (r && r[2]) ? r[2].toString().trim() : '';
+                            const col3 = (r && r[3]) ? r[3].toString().trim() : '';
+                            
+                            return {
+                                codice_cliente: col0,
+                                codice_vero: col1,
+                                descrizione: col2,
+                                quantita_cat: col3
+                            };
+                        }).filter(r => r.codice_vero !== '' || r.descrizione !== '');
                     }
-                },
-                error: function(err) {
-                    console.error("Errore nel caricamento del file CSV:", err);
                 }
             });
         }
@@ -109,28 +115,32 @@
             nazioneAttuale = naz;
             document.getElementById('btn-italia').classList.toggle('active', naz === 'ITALIA');
             document.getElementById('btn-spagna').classList.toggle('active', naz === 'SPAGNA');
-            caricaCatalogo();
             document.getElementById('search-input').value = '';
             articoloSelezionato = null;
+            caricaCatalogo();
         }
 
         function cercaArticolo(query) {
             const box = document.getElementById('results-box');
-            if (query.length < 2) { box.style.display = 'none'; return; }
+            if (!query || query.trim().length < 2) { box.style.display = 'none'; return; }
             
             const q = query.toLowerCase().trim();
             const filtrati = catalogo.filter(a => 
-                (a.codice_vero && a.codice_vero.toString().toLowerCase().includes(q)) || 
-                (a.descrizione && a.descrizione.toString().toLowerCase().includes(q))
+                (a.codice_vero && a.codice_vero.toLowerCase().includes(q)) || 
+                (a.descrizione && a.descrizione.toLowerCase().includes(q))
             ).slice(0, 15);
 
             if (filtrati.length === 0) { box.style.display = 'none'; return; }
 
-            box.innerHTML = filtrati.map(a => `
-                <div class="search-item" onclick="selezionaArticolo('${a.codice_vero.toString().replace(/'/g, "\\'")}', '${a.descrizione.toString().replace(/'/g, "\\'")}')">
-                    <span class="badge">${a.codice_vero}</span> ${a.descrizione}
-                </div>
-            `).join('');
+            box.innerHTML = filtrati.map(a => {
+                const codSicuro = a.codice_vero.replace(/'/g, "\\'");
+                const descSicura = a.descrizione.replace(/'/g, "\\'");
+                return `
+                    <div class="search-item" onclick="selezionaArticolo('${codSicuro}', '${descSicura}')">
+                        <span class="badge">${a.codice_vero}</span> ${a.descrizione}
+                    </div>
+                `;
+            }).join('');
             box.style.display = 'block';
         }
 
@@ -141,11 +151,14 @@
         }
 
         function aggiungiInLista() {
-            const qta = parseInt(document.getElementById('quantita-input').value) || 1;
+            const qtaInput = document.getElementById('quantita-input');
+            const qta = parseInt(qtaInput.value) || 1;
+            const searchInput = document.getElementById('search-input');
+            
             let art = articoloSelezionato;
             
             if (!art) {
-                const testoLibero = document.getElementById('search-input').value.trim();
+                const testoLibero = searchInput.value.trim();
                 if(!testoLibero) return;
                 art = { codice: 'MANUALE', desc: testoLibero };
             }
@@ -153,9 +166,8 @@
             carrello.push({ ...art, qta });
             aggiornaTabella();
             
-            // Resetta i campi di inserimento
-            document.getElementById('search-input').value = '';
-            document.getElementById('quantita-input').value = '1';
+            searchInput.value = '';
+            qtaInput.value = '1';
             articoloSelezionato = null;
         }
 
@@ -178,7 +190,7 @@
 
         function generaPDF() {
             if (carrello.length === 0) {
-                alert("La lista degli articoli è vuota!");
+                alert("La lista degli articoli è vuota! Aggiungi almeno un articolo.");
                 return;
             }
 
@@ -197,6 +209,42 @@
                     .info p { margin: 5px 0; font-size: 14px; }
                     table { width: 100%; border-collapse: collapse; margin-top: 20px; }
                     th { background-color: #0284c7; color: white; padding: 12px 10px; text-align: left; }
-                    td { padding: 12px 10px; border-bottom: 1px solid #e2e8f0; }
-                    tr:nth-child(even) { background-color: #f8fafc; }
-                    .no-print-btn { display: block; width: 100%; max-width: 200px; margin: 0 auto 20px auto; padding: 12px; background: #10b981; color: white; text-align: center; border: none; border-radius: 8px; font-weight: bold; font-size: 16px; cursor: pointer; }
+td { padding: 12px 10px; border-bottom: 1px solid #e2e8f0; }
+tr:nth-child(even) { background-color: #f8fafc; }
+.no-print-btn { display: block; width: 100%; max-width: 200px; margin: 0 auto 20px auto; padding: 12px; background: #10b981; color: white; text-align: center; border: none; border-radius: 8px; font-weight: bold; font-size: 16px; cursor: pointer; }
+@media print { .no-print-btn { display: none; } }
+🖨️ Stampa o Condividi PDF
+Riepilogo Ordine Materiali
+
+Nazione: ${nazioneAttuale}
+Punto Vendita / Cantiere: ${cantiere}
+Montatore: ${montatore}
+`;
+carrello.forEach(item => {
+contenutoStampa += `
+`;});
+contenutoStampa += `
+
+Codice Articolo
+	Descrizione Componente
+	Quantità
+${item.codice}
+	${item.desc}
+	${item.qta} pezzi
+
+setTimeout(() => { window.print(); }, 500);
+</script>
+
+
+`;
+const nuovaFinestra = window.open();
+if (nuovaFinestra) {
+nuovaFinestra.document.open();
+nuovaFinestra.document.write(contenutoStampa);
+nuovaFinestra.document.close();
+} else {
+alert("Browser bloccato! Consenti l'apertura delle nuove schede/pop-up nelle impostazioni del telefono per visualizzare la stampa.");
+}
+}
+caricaCatalogo();
+   
