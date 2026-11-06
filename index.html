@@ -174,13 +174,14 @@
             aggiornaTabella();
         }
 
-        function generaPDF() {
+                function generaPDF() {
             const { jsPDF } = window.jspdf;
             const doc = new jsPDF();
             
             const montatore = document.getElementById('montatore').value || 'Non specificato';
             const cantiere = document.getElementById('cantiere').value || 'Generico';
 
+            // 1. Genera la grafica del PDF
             doc.setFont("helvetica", "bold");
             doc.setFontSize(20);
             doc.text("Riepilogo Ordine Materiali", 14, 20);
@@ -201,7 +202,29 @@
                 theme: 'striped'
             });
 
-            doc.save(`Ordine_${cantiere.replace(/\s+/g, '_')}.pdf`);
+            // 2. Scarica il PDF localmente sul telefono
+            const nomeFile = `Ordine_${cantiere.replace(/\s+/g, '_')}.pdf`;
+            doc.save(nomeFile);
+
+            // 3. Prepara il testo della mail in automatico
+            let testoMail = `Ciao, ecco il riepilogo dell'ordine per il cantiere: ${cantiere}\n\n`;
+            testoMail += `Montatore: ${montatore}\n`;
+            testoMail += `Nazione: ${nazioneAttuale}\n\n`;
+            testoMail += `ARTICOLI RICHIESTI:\n`;
+            testoMail += `--------------------------------------------------\n`;
+            carrello.forEach(item => {
+                testoMail += `- [${item.codice}] ${item.desc} -> ${item.qta} pz\n`;
+            });
+            testoMail += `--------------------------------------------------\n`;
+            testoMail += `Nota: Trovi il PDF ufficiale già scaricato nella cartella Download del tuo telefono. Trascinalo qui prima di inviare.`;
+
+            // 4. Apre l'app di posta sul telefono con i campi già pronti
+            const emailDestinatario = "info@i-codesign.it";
+            const oggettoMail = encodeURIComponent(`Nuovo Ordine Cantiere - ${cantiere}`);
+            const corpoMail = encodeURIComponent(testoMail);
+
+            // Reindirizza il browser all'app di posta
+            window.location.href = `mailto:${emailDestinatario}?subject=${oggettoMail}&body=${corpoMail}`;
         }
 
         // Avvia automaticamente il catalogo Italia all'apertura del sito
