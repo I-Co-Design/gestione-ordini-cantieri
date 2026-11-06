@@ -174,57 +174,79 @@
             aggiornaTabella();
         }
 
-                function generaPDF() {
-            const { jsPDF } = window.jspdf;
-            const doc = new jsPDF();
-            
+                       function generaPDF() {
             const montatore = document.getElementById('montatore').value || 'Non specificato';
             const cantiere = document.getElementById('cantiere').value || 'Generico';
 
-            // 1. Genera la grafica del PDF
-            doc.setFont("helvetica", "bold");
-            doc.setFontSize(20);
-            doc.text("Riepilogo Ordine Materiali", 14, 20);
-            
-            doc.setFontSize(11);
-            doc.setFont("helvetica", "normal");
-            doc.text(`Nazione: ${nazioneAttuale}`, 14, 30);
-            doc.text(`Cantiere / Punto Vendita: ${cantiere}`, 14, 36);
-            doc.text(`Montatore: ${montatore}`, 14, 42);
+            // 1. Crea il contenuto della nuova pagina di stampa
+            let contenutoStampa = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Ordine_${cantiere.replace(/\s+/g, '_')}</title>
+                <style>
+                    body { font-family: 'Helvetica', Arial, sans-serif; color: #333; margin: 30px; line-height: 1.5; }
+                    h1 { color: #0284c7; border-bottom: 2px solid #0284c7; padding-bottom: 10px; margin-top: 0; }
+                    .info { background: #f8fafc; padding: 15px; border-left: 5px solid #0284c7; margin-bottom: 25px; border-radius: 0 8px 8px 0; }
+                    .info p { margin: 5px 0; font-size: 14px; }
+                    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+                    th { background-color: #0284c7; color: white; padding: 12px 10px; text-align: left; font-size: 14px; }
+                    td { padding: 12px 10px; border-bottom: 1px solid #e2e8f0; font-size: 14px; }
+                    tr:nth-child(even) { background-color: #f8fafc; }
+                    .no-print-btn { display: block; width: 100%; max-width: 200px; margin: 0 auto 20px auto; padding: 12px; background: #10b981; color: white; text-align: center; border: none; border-radius: 8px; font-weight: bold; font-size: 16px; cursor: pointer; }
+                    @media print { .no-print-btn { display: none; } }
+                </style>
+            </head>
+            <body>
+                <button class="no-print-btn" onclick="window.print()">🖨️ Stampa / Condividi PDF</button>
+                <h1>Riepilogo Ordine Materiali</h1>
+                <div class="info">
+                    <p><strong>Nazione:</strong> ${nazioneAttuale}</p>
+                    <p><strong>Punto Vendita / Cantiere:</strong> ${cantiere}</p>
+                    <p><strong>Montatore:</strong> ${montatore}</p>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Codice Articolo</th>
+                            <th>Descrizione Componente</th>
+                            <th>Quantità</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
 
-            const righeTabella = carrello.map(item => [item.codice, item.desc, `${item.qta} pz`]);
-
-            doc.autoTable({
-                startY: 48,
-                head: [['Codice Articolo', 'Descrizione Componente', 'Quantità']],
-                body: righeTabella,
-                headStyles: { fillColor: [2, 132, 199] },
-                theme: 'striped'
-            });
-
-            // 2. Scarica il PDF localmente sul telefono
-            const nomeFile = `Ordine_${cantiere.replace(/\s+/g, '_')}.pdf`;
-            doc.save(nomeFile);
-
-            // 3. Prepara il testo della mail in automatico
-            let testoMail = `Ciao, ecco il riepilogo dell'ordine per il cantiere: ${cantiere}\n\n`;
-            testoMail += `Montatore: ${montatore}\n`;
-            testoMail += `Nazione: ${nazioneAttuale}\n\n`;
-            testoMail += `ARTICOLI RICHIESTI:\n`;
-            testoMail += `--------------------------------------------------\n`;
+            // Aggiunge le righe degli articoli scelti alla tabella
             carrello.forEach(item => {
-                testoMail += `- [${item.codice}] ${item.desc} -> ${item.qta} pz\n`;
+                contenutoStampa += `
+                        <tr>
+                            <td><strong>${item.codice}</strong></td>
+                            <td>${item.desc}</td>
+                            <td>${item.qta} pezzi</td>
+                        </tr>
+                `;
             });
-            testoMail += `--------------------------------------------------\n`;
-            testoMail += `Nota: Trovi il PDF ufficiale già scaricato nella cartella Download del tuo telefono. Trascinalo qui prima di inviare.`;
 
-            // 4. Apre l'app di posta sul telefono con i campi già pronti
-            const emailDestinatario = "info@i-codesign.it";
-            const oggettoMail = encodeURIComponent(`Nuovo Ordine Cantiere - ${cantiere}`);
-            const corpoMail = encodeURIComponent(testoMail);
+            contenutoStampa += `
+                    </tbody>
+                </table>
+                <script>
+                    // Apre in automatico il menu di stampa/condivisione del telefono dopo un secondo
+                    setTimeout(() => { window.print(); }, 1000);
+                <\/script>
+            </body>
+            </html>
+            `;
 
-            // Reindirizza il browser all'app di posta
-            window.location.href = `mailto:${emailDestinatario}?subject=${oggettoMail}&body=${corpoMail}`;
+            // 2. Apre una nuova finestra/scheda nel browser del telefono e ci scrive dentro la pagina d'ordine
+            const nuovaFinestra = window.open();
+            if (nuovaFinestra) {
+                nuovaFinestra.document.open();
+                nuovaFinestra.document.write(contenutoStampa);
+                nuovaFinestra.document.close();
+            } else {
+                alert("Il tuo browser ha bloccato la nuova finestra. Controlla le impostazioni dei pop-up!");
+            }
         }
 
         // Avvia automaticamente il catalogo Italia all'apertura del sito
