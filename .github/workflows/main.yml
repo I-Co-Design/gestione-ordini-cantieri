@@ -1,0 +1,42 @@
+name: Generatore PDF Ordini Cloud
+on:
+  repository_dispatch:
+    types: [nuovo_ordine_forms]
+
+jobs:
+  build-pdf:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Scarica Codice ed Excel dal Repository
+      uses: actions/checkout@v3
+
+    - name: Configura Python
+      uses: actions/setup-python@v4
+      with:
+        python-node: '3.10'
+
+    - name: Installa Librerie per Excel e PDF
+      run: |
+        sudo apt-get update && sudo apt-get install -y libpango-1.0-0 libharfbuzz0b libpangoft2-1.0-0
+        pip install pandas openpyxl weasyprint
+
+    - name: Esegui Incrocio Dati e Genera PDF
+      env:
+        DATI_ARTICOLI: ${{ github.event.client_payload.articoli }}
+        NAZIONE: ${{ github.event.client_payload.nazione }}
+        CANTIERE: ${{ github.event.client_payload.cantiere }}
+        MONTATORE: ${{ github.event.client_payload.montatore }}
+      run: python elabora_ordine.py
+
+    - name: Invia il PDF Finito via Email a Thunderbird
+      uses: dawidd6/action-send-mail@v3
+      with:
+        server_address: ://gmail.com # Cambialo con il tuo provider SMTP (es. outlook, aruba ecc.)
+        server_port: 465
+        username: info@i-codesign.it
+        password: ${{ secrets.SMTP_PASSWORD }}
+        subject: "PDF PRONTO: Ordine per Cantiere ${{ github.event.client_payload.cantiere }}"
+        body: "In allegato trovi il PDF d'ordine pulito, codificato ed estratto dal catalogo di 1607 referenze."
+        to: info@i-codesign.it
+        from: Cloud Automations <info@i-codesign.it>
+        attachments: Ordine_Materiali.pdf
